@@ -563,6 +563,9 @@
                 <button id="exportBtn" class="kawaii-btn !py-1.5 !px-3 sm:!px-4 text-xs sm:text-sm bg-secondary text-white shadow-sm">导出Excel</button>
                 <input type="file" id="excelFile" class="hidden" accept=".xlsx, .xls">
             </div>
+<button id="shareReadOnlyBtn" class="kawaii-btn !py-1.5 !px-4 text-xs sm:text-sm bg-[#34D399] text-white shadow-sm flex items-center gap-1">
+    <i class="fa-solid fa-share-nodes"></i> 📤 一键分享只读链接
+</button>
         </section>
 <!-- 【完美复刻版】淘汰方式/胜利方式 条目管理区 -->
         <section id="methodManagerSection" class="kawaii-card p-4 sm:p-6 mb-6 bg-[#FEFCE8]">
@@ -1230,6 +1233,7 @@ function renderSessionSelectorUI() {
 function init() {
             
             const saved = localStorage.getItem('unoInfinityPro');
+checkReadOnlyMode();
             let dataValid = false;
             
             if (saved) {
@@ -4328,6 +4332,87 @@ gameData.currentSessionIndex = -1;
                }
            };
        }
+// ==================== 【一键分享只读功能】 ====================
+// 检查是否是通过分享链接打开的
+function checkReadOnlyMode() {
+    const params = new URLSearchParams(window.location.search);
+    const dataUrl = params.get('dataurl');
+    if (dataUrl) {
+        loadSharedData(dataUrl);
+    } else if (params.has('readonly')) {
+        window.isReadOnlyMode = true;
+        enterReadOnlyMode();
+    }
+}
+
+async function loadSharedData(dataUrl) {
+    try {
+        const res = await fetch(dataUrl);
+        const sharedData = await res.json();
+        gameData = sharedData;
+        window.isReadOnlyMode = true;
+        recalculateStats();
+        updateAllUI();
+        enterReadOnlyMode();
+        showReadOnlyToast();
+    } catch(e) { alert("加载分享数据失败，链接可能已过期"); }
+}
+
+function enterReadOnlyMode() {
+    window.isReadOnlyMode = true;
+    
+    // 禁用所有修改按钮
+    const btnIds = ['calculateBtn','v2CalculateBtn','resetBtn','importBtn','exportBtn','addSessionBtn','savePresetBtn','undoBtn','redoBtn','v2UndoBtn','v2RedoBtn','earlyWinBtn'];
+    btnIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.disabled = true; el.style.opacity = '0.35'; el.style.pointerEvents = 'none'; }
+    });
+    
+    // 隐藏玩家编辑区和输入区
+    const hideIds = ['playerMgrContent','inputSection'];
+    hideIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    
+    // v2分数输入框禁用
+    document.querySelectorAll('.v2-score-input').forEach(i => i.disabled = true);
+    
+    showReadOnlyToast();
+}
+
+function showReadOnlyToast() {
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;top:15px;left:50%;transform:translateX(-50%);background:#34D399;color:white;padding:12px 24px;border-radius:9999px;font-weight:bold;box-shadow:0 6px 0 #166534;z-index:999999;font-size:15px;';
+    toast.innerHTML = '👁️ 只读查看模式（朋友分享） - 无法修改数据';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4500);
+}
+
+// 一键生成分享链接
+async function shareReadOnly() {
+    if (!gameData.rounds || gameData.rounds.length === 0) return alert("没有游戏数据，无法分享");
+    
+    try {
+        const res = await fetch('https://jsonblob.com/api/jsonBlob', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(gameData)
+        });
+        const blobUrl = res.headers.get('location');
+        
+        const baseUrl = window.location.origin + window.location.pathname;
+        const shareLink = `${baseUrl}?readonly=1&dataurl=${encodeURIComponent(blobUrl)}`;
+        
+        await navigator.clipboard.writeText(shareLink);
+        alert("✅ 分享链接已复制！\n直接发微信群即可\n朋友打开后是只读模式~");
+    } catch(e) {
+        alert("分享失败（请确保已部署到GitHub Pages）");
+    }
+}
+
+// ==================== 初始化 ====================
+document.getElementById('shareReadOnlyBtn').onclick = shareReadOnly;
         window.onload = init;
 // ==========================================
 // 【第四步：结算方式条目管理区 核心驱动代码】
