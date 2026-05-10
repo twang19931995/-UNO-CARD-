@@ -3,263 +3,179 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>卡牌扇形自动算分器</title>
+    <title>卡牌精准算分器</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #111;
-            color: #fff;
-            font-family: sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        /* 顶部信息区 */
-        .header {
-            width: 100%;
-            padding: 15px 0;
-            text-align: center;
-            background: #222;
-            z-index: 10;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-        }
-        .header h2 { margin: 0; font-size: 18px; color: #4CAF50; }
-        .header p { margin: 5px 0 0; font-size: 12px; color: #aaa; }
-
-        /* 摄像头与扫描区域容器 */
-        .scanner-container {
-            position: relative;
-            width: 100%;
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-            background: #000;
-        }
-
-        video {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            object-fit: cover; /* 保证视频填满屏幕 */
-        }
-
-        /* 遮罩层，让四周变暗，突出扫描区域 */
-        .overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.6);
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        /* 核心瞄准框：只扫描这个区域内的数字 */
-        .scan-box {
-            position: absolute;
-            top: 30%; /* 偏上位置，方便手持 */
-            width: 85%;
-            height: 80px; /* 扁平的长方形，正好容纳扇形展开的数字 */
-            border: 3px solid #ff3b30;
-            border-radius: 8px;
-            box-sizing: border-box;
-            z-index: 2;
-            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6); /* 替代部分overlay功能，实现镂空效果 */
-        }
-
-        /* 扫描动画线 */
-        .scan-line {
-            width: 100%;
-            height: 2px;
-            background: #ff3b30;
-            position: absolute;
-            top: 0;
-            animation: scan 1.5s infinite linear;
-        }
-        @keyframes scan {
-            0% { top: 0; opacity: 0; }
-            10% { opacity: 1; }
-            90% { opacity: 1; }
-            100% { top: 100%; opacity: 0; }
-        }
-
-        /* 结果显示区 */
-        .result-panel {
-            width: 100%;
-            height: 160px;
-            background: #222;
-            z-index: 10;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 10px;
-            box-sizing: border-box;
-        }
-        
-        .score-display {
-            font-size: 48px;
-            font-weight: bold;
-            color: #ffcc00;
-            margin-bottom: 5px;
-        }
-
-        .details {
-            color: #888;
-            font-size: 14px;
-            min-height: 20px;
-        }
-
-        .status {
-            color: #4CAF50;
-            font-size: 12px;
-            margin-top: 10px;
-        }
+        body { margin: 0; background: #111; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        .header { padding: 10px; text-align: center; background: #222; z-index: 10; }
+        .header h2 { margin: 0; color: #4CAF50; font-size: 18px; }
+        .scanner-container { position: relative; width: 100%; flex: 1; display: flex; justify-content: center; align-items: center; background: #000; overflow: hidden; }
+        video { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+        .scan-box { position: absolute; top: 25%; width: 80%; height: 70px; border: 3px solid #ff3b30; border-radius: 8px; box-sizing: border-box; z-index: 2; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7); }
+        .scan-line { width: 100%; height: 2px; background: #ff3b30; position: absolute; animation: scan 1.5s infinite linear; }
+        @keyframes scan { 0% { top: 0; opacity: 0;} 10% { opacity: 1;} 90% { opacity: 1;} 100% { top: 100%; opacity: 0;} }
+        .result-panel { width: 100%; height: 180px; background: #222; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px; box-sizing: border-box; z-index: 10; }
+        .score-display { font-size: 56px; font-weight: bold; color: #ffcc00; margin: 0; }
+        .details { color: #aaa; font-size: 16px; margin-top: 5px; }
+        .status { color: #4CAF50; font-size: 12px; margin-top: 10px; }
+        /* 调试用的画布，能让你看到AI眼里的画面 */
+        #debugCanvas { position: absolute; top: 10px; right: 10px; height: 35px; border: 1px solid #00ff00; z-index: 999; background: #fff; }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <h2>自动算分器</h2>
-        <p>请将卡牌边缘的数字<b>扇形平铺</b>在红框内</p>
+        <h2>精准算分模式</h2>
     </div>
 
     <div class="scanner-container">
         <video id="video" autoplay playsinline muted></video>
-        <!-- 扫描镂空框 -->
         <div class="scan-box" id="scan-box">
             <div class="scan-line"></div>
         </div>
+        <!-- 悬浮在右上角的小框，显示处理后的黑白图像，用于调试 -->
+        <canvas id="debugCanvas"></canvas>
     </div>
 
     <div class="result-panel">
         <div class="score-display" id="total-score">0</div>
-        <div class="details" id="recognized-numbers">等待识别...</div>
+        <div class="details" id="recognized-numbers">等待稳定识别...</div>
         <div class="status" id="status-text">系统初始化中...</div>
     </div>
 
-    <!-- 隐藏的 Canvas 用于裁剪图像 -->
     <canvas id="cropCanvas" style="display:none;"></canvas>
 
     <script>
         const video = document.getElementById('video');
         const scanBox = document.getElementById('scan-box');
         const cropCanvas = document.getElementById('cropCanvas');
+        const debugCanvas = document.getElementById('debugCanvas');
         const ctx = cropCanvas.getContext('2d', { willReadFrequently: true });
+        const debugCtx = debugCanvas.getContext('2d');
         const totalScoreEl = document.getElementById('total-score');
         const detailsEl = document.getElementById('recognized-numbers');
         const statusEl = document.getElementById('status-text');
 
         let worker = null;
         let isProcessing = false;
+        
+        // 防抖变量：连续识别几次一样的才算数
+        let lastRecognizedString = "";
+        let stableCount = 0;
+        const REQUIRED_STABLE_COUNT = 2; // 连续2次识别相同才输出
 
-        // 1. 初始化摄像头
         async function startCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
+                    video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
                 });
                 video.srcObject = stream;
-                
-                // 视频加载完成后，初始化 OCR 并启动循环
-                video.onloadedmetadata = async () => {
-                    await initOCR();
-                };
+                video.onloadedmetadata = async () => { await initOCR(); };
             } catch (err) {
-                alert("无法调用摄像头，请在HTTPS环境下打开，并允许权限。");
+                alert("摄像头调用失败。");
             }
         }
 
-        // 2. 初始化 Tesseract AI 引擎
         async function initOCR() {
             statusEl.innerText = "正在加载 AI 模型...";
             worker = await Tesseract.createWorker('eng');
-            
-            // 核心设置：只识别数字，并将页面分割模式(PSM)设为 Sparse Text (11) 
-            // Sparse Text 适合识别这种散落在扇形区域、并不在一条绝对直线上的数字
             await worker.setParameters({
                 tessedit_char_whitelist: '0123456789',
-                tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT
+                // 改用 PSM 6：假设这是一个统一的文本块，比分散文本更适合处理大数字
+                tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK, 
             });
-            
-            statusEl.innerText = "扫描中...请将边缘数字对准红框";
-            // 启动定时识别循环
-            setInterval(captureAndRecognize, 1500); // 每 1.5 秒抓取一次
+            statusEl.innerText = "扫描中...请将数字放在红框内";
+            setInterval(captureAndRecognize, 800); // 提高抓取频率，但加入防抖机制
         }
 
-        // 3. 截取红框内容并识别
         async function captureAndRecognize() {
-            // 如果上一次还没识别完，跳过这次（防止卡顿）
             if (isProcessing || !worker || video.readyState !== 4) return;
             isProcessing = true;
 
             try {
-                // 计算红框在实际视频画面中的真实坐标和大小
                 const videoRect = video.getBoundingClientRect();
                 const boxRect = scanBox.getBoundingClientRect();
-
                 const scaleX = video.videoWidth / videoRect.width;
                 const scaleY = video.videoHeight / videoRect.height;
 
-                // 裁剪区域的 x, y, 宽, 高
-                const cropX = (boxRect.left - videoRect.left) * scaleX;
-                const cropY = (boxRect.top - videoRect.top) * scaleY;
                 const cropW = boxRect.width * scaleX;
                 const cropH = boxRect.height * scaleY;
 
                 cropCanvas.width = cropW;
                 cropCanvas.height = cropH;
 
-                // 把视频中对应红框的部分画到 canvas 上
-                ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+                // 1. 抓取红框图像
+                ctx.drawImage(video, (boxRect.left - videoRect.left) * scaleX, (boxRect.top - videoRect.top) * scaleY, cropW, cropH, 0, 0, cropW, cropH);
                 
-                // 取出图片数据
-                const imageData = cropCanvas.toDataURL('image/png');
+                // 2. 核心魔法：图像预处理（强行黑白高对比反转）
+                // AI 喜欢白纸黑字。你的卡牌是绿底白字。
+                // 我们要把亮的（白字）变黑，暗的（背景）变白。
+                let imgData = ctx.getImageData(0, 0, cropW, cropH);
+                let data = imgData.data;
+                
+                for (let i = 0; i < data.length; i += 4) {
+                    let r = data[i], g = data[i+1], b = data[i+2];
+                    // 计算亮度
+                    let brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                    
+                    // 阈值判断：如果很亮（说明是白色的数字），就把它涂成纯黑
+                    // 否则（绿色背景或阴影桌布），涂成纯白
+                    if (brightness > 150) { 
+                        data[i] = data[i+1] = data[i+2] = 0;   // 变黑字
+                    } else {
+                        data[i] = data[i+1] = data[i+2] = 255; // 变白底
+                    }
+                }
+                ctx.putImageData(imgData, 0, 0);
 
-                // 传给 AI 识别
-                const { data: { text } } = await worker.recognize(imageData);
-                
-                // 解析数字
+                // 把处理后的画面显示在右上角，方便你调试看效果
+                debugCanvas.width = cropW;
+                debugCanvas.height = cropH;
+                debugCtx.putImageData(imgData, 0, 0);
+
+                const base64Image = cropCanvas.toDataURL('image/png');
+
+                // 3. AI 识别
+                const { data: { text } } = await worker.recognize(base64Image);
                 processResult(text);
 
             } catch (err) {
-                console.error("识别错误:", err);
+                console.error(err);
             } finally {
                 isProcessing = false;
             }
         }
 
-        // 4. 处理识别结果并相加
         function processResult(text) {
-            // 提取由空格或换行隔开的所有数字集合
             const numbers = text.match(/\d+/g);
-
+            
             if (numbers && numbers.length > 0) {
-                // 过滤掉可能识别错的离谱大数字（比如大于100的视为误识别），防止出错
-                const validNumbers = numbers
-                    .map(num => parseInt(num, 10))
-                    .filter(num => num <= 100); 
-
-                if(validNumbers.length > 0) {
-                    const sum = validNumbers.reduce((total, num) => total + num, 0);
+                // 过滤掉大于 20 的离谱数字 (UNO 最大数字是9，特殊牌算20/50，这里设个阈值防止把桌布认成888)
+                const validNumbers = numbers.map(num => parseInt(num, 10)).filter(num => num <= 50); 
+                
+                if (validNumbers.length > 0) {
+                    const currentString = validNumbers.join(',');
                     
-                    // 只有当识别出数字时才更新 UI，防止屏幕因为抓取不到数字频繁闪烁清零
-                    totalScoreEl.innerText = sum;
-                    detailsEl.innerText = `识别到: [ ${validNumbers.join(' + ')} ]`;
-                    
-                    // 添加一个短暂的视觉反馈颜色变化
-                    totalScoreEl.style.color = "#4CAF50";
-                    setTimeout(() => { totalScoreEl.style.color = "#ffcc00"; }, 500);
+                    // 防抖逻辑：只有连续识别出一样的结果，才更新界面
+                    if (currentString === lastRecognizedString) {
+                        stableCount++;
+                        if (stableCount >= REQUIRED_STABLE_COUNT) {
+                            const sum = validNumbers.reduce((a, b) => a + b, 0);
+                            totalScoreEl.innerText = sum;
+                            detailsEl.innerText = `锁定识别: [ ${validNumbers.join(' + ')} ]`;
+                        }
+                    } else {
+                        // 如果变了，重新计数
+                        lastRecognizedString = currentString;
+                        stableCount = 1;
+                    }
                 }
+            } else {
+                // 如果没扫到数字，计数器清零，但不立刻清零界面，防止闪烁
+                stableCount = 0;
             }
         }
 
-        // 启动应用
         startCamera();
     </script>
 </body>
