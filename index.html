@@ -2,664 +2,166 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UNO卡牌介绍</title>
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Fredoka:wght@400;600;700&family=Lobster&family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;700;900&family=Noto+Serif+SC:wght@400;700;900&family=Oswald:wght@400;700&family=Pacifico&family=Roboto+Mono:wght@400;700&family=Rubik+Bubbles&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>桌游自动算分器</title>
+    <!-- 引入 Tesseract.js 用于图像文字识别 -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
-        /* ====================================================================
-        【教学：全局变量区】
-        控制类型：网页基础色调与字体
-        调节方法：直接修改冒号后面的颜色值（#HEX 或 rgb）或字体名称。
-        ==================================================================== 
-        */
-        :root {
-            --bg-global: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); 
-            --container-bg: #ffffff;       
-            --theme-border-color: #5E4B8B; /* 描边颜色 */
-            --theme-shadow: 0 4px 0 #5E4B8B; /* 底部厚度阴影 */
-            --font-main: 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
-            --font-number: 'Oswald', sans-serif;
-            --font-english: 'Fredoka', sans-serif;
-        }
-
-        * {
-            box-sizing: border-box; margin: 0; padding: 0;
-            user-select: none; -webkit-tap-highlight-color: transparent;
-        }
-
         body {
-            font-family: var(--font-main);
-            background: var(--bg-global);
-            background-attachment: fixed; 
-            min-height: 100vh;
-            padding: 15px;
-            overflow-x: hidden;
-            display: flex; flex-direction: column; align-items: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
         }
-        ::-webkit-scrollbar { display: none; }
-
-        /* ====================================================================
-        【教学：顶部导航栏样式】 (.header)
-        控制类型：顶部标题和左右按钮的布局
-        ==================================================================== 
-        */
-        .header {
-            width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; position: relative;
-        }
-
-        .icon-btn {
-            width: 35px; height: 35px; /* 控制图标按钮大小 */
-            border-radius: 50%; /* 50%为正圆，0%为方形 */
-            display: flex; justify-content: center; align-items: center;
-            font-size: 18px; color: white;
-            cursor: pointer; transition: transform 0.1s;
-        }
-        .icon-btn i { filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2)); }
-        .icon-btn:active { transform: translateY(2px); /* 点击时往下移动的特效 */ }
-
-        .main-title {
-            background-color: white; color: #5E4B8B; font-size: 20px; font-weight: 900;
-            padding: 6px 20px; border-radius: 8px; border: 2px solid var(--theme-border-color);
-            position: absolute; left: 50%; transform: translateX(-50%);
-        }
-
-        /* ====================================================================
-        【教学：分类导航栏容器】 (.category-container)
-        控制类型：滑动分类栏的背景、边框、间距
-        ==================================================================== 
-        */
-        .category-container {
-            width: 100%; background-color: var(--container-bg);
-            border: 3px solid var(--theme-border-color); box-shadow: var(--theme-shadow);
-            border-radius: 8px;
-            padding: 6px; 
-            margin-bottom: 20px;
-            display: flex; overflow-x: auto; scroll-behavior: smooth;
-            gap: 6px; /* 按钮之间的缝隙大小 */
-            align-items: center;
+        h1 { color: #333; }
+        .camera-container {
             position: relative;
+            max-width: 100%;
+            width: 400px;
+            margin: 0 auto;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            background: #000;
         }
-
-        /* ====================================================================
-        【教学：分类按钮样式】 (.cat-btn)
-        控制类型：各个分类小标签的尺寸和动画
-        参数调节：
-        - flex: 这里控制的是宽度。公式 calc((100% - 30px) / 6) 确保画面正好塞进6个！
-        - border-radius: 按钮圆角。
-        [备用特效：发光] 如果你想让按钮发光，可加入 box-shadow: 0 0 10px rgba(255,255,255,0.8);
-        ==================================================================== 
-        */
-        .cat-btn {
-            flex: 0 0 calc((100% - 5 * 6px) / 6); /* 核心：精确计算，刚好展示6个 */
-            padding: 6px 0; 
-            border-radius: 8px; color: white; font-weight: 900; font-size: 14px; 
-            font-family: var(--font-english); border: 2px solid var(--theme-border-color);
-            box-shadow: 0 3px 0 var(--theme-border-color); text-align: center;
-            cursor: pointer; transition: all 0.1s;
-            overflow: hidden; white-space: nowrap; text-overflow: ellipsis; 
-            z-index: 1; /* 默认层级 */
+        video {
+            width: 100%;
+            display: block;
         }
-        .cat-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--theme-border-color); }
-        .cat-btn.active { border-color: #FFD700; } /* 选中时的金边 */
-        
-        /* 独立锁定ALL按钮的样式 */
-        .cat-btn.all-btn {
-            position: sticky; /* 粘性定位，随页面滑动但会贴在左边 */
-            left: 0; 
-            z-index: 10; /* 层级调高，防止被右侧滑过来的按钮盖住 */
-            /* 加一层右侧阴影，让它像悬浮在其它按钮上面 */
-            box-shadow: 3px 0 5px rgba(0,0,0,0.1), 0 3px 0 var(--theme-border-color);
+        button {
+            margin-top: 20px;
+            padding: 12px 24px;
+            font-size: 18px;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,123,255,0.3);
+            transition: background-color 0.3s;
         }
-
-        .cat-btn.dragging { opacity: 0.5; transform: scale(0.95); }
-        .cat-btn.drag-over { border: 2px dashed #FFD700; transform: scale(1.05); }
-
-        .add-btn { background-color: white; color: var(--theme-border-color); font-size: 20px; display: none; }
-
-        /* ====================================================================
-        【教学：卡牌区容器与单张卡牌】 
-        控制类型：下方大图的网格布局
-        参数调节：
-        - grid-template-columns: repeat(5, 1fr) 代表一行5张卡。改(4, 1fr)就是一行4张。
-        - aspect-ratio: 2 / 3 代表卡牌宽高比，2宽3高。
-        ==================================================================== 
-        */
-        .big-title-container {
-            background-color: #E55A5A; color: white; font-size: 48px; font-family: var(--font-english);
-            font-weight: 900; padding: 5px 40px; border-radius: 8px;
-            border: 3px solid var(--theme-border-color); box-shadow: var(--theme-shadow); margin-bottom: 20px; text-align: center;
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #result-box {
+            margin: 20px auto;
+            max-width: 400px;
+            padding: 15px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 18px;
+            line-height: 1.6;
         }
-
-        .cards-container {
-            width: 100%; background-color: var(--container-bg); border: 3px solid var(--theme-border-color);
-            box-shadow: var(--theme-shadow); border-radius: 8px; padding: 8px;
-            display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;
+        .total-score {
+            font-size: 24px;
+            color: #d9534f;
+            font-weight: bold;
+            margin-top: 10px;
         }
-
-        .card-item { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; transition: transform 0.2s; }
-        .card-item:active { transform: scale(0.95); } /* 卡牌点击缩小回弹反馈 */
-
-        .card-img-box {
-            width: 100%; aspect-ratio: 2 / 3; border: 2px solid var(--theme-border-color);
-            border-radius: 4px; box-shadow: 0 2px 0 var(--theme-border-color); overflow: hidden; background-color: black;
+        #loading {
+            color: #666;
+            font-style: italic;
         }
-        .card-img-box img { width: 100%; height: 100%; object-fit: contain; }
-
-        .card-badge {
-            width: 100%; background-color: #E55A5A; color: white; font-weight: 900;
-            font-family: var(--font-number); font-size: 14px; text-align: center;
-            padding: 2px 0; border-radius: 6px; border: 2px solid var(--theme-border-color);
-            box-shadow: 0 2px 0 var(--theme-border-color);
-        }
-
-        .add-card-box {
-            width: 100%; aspect-ratio: 2 / 3; background-color: white; border: 2px solid var(--theme-border-color);
-            border-radius: 8px; display: none; justify-content: center; align-items: center;
-            font-size: 40px; color: var(--theme-border-color); box-shadow: 0 2px 0 var(--theme-border-color); cursor: pointer;
-        }
-
-        .admin-footer { display: none; flex-direction: column; gap: 10px; margin-top: 30px; width: 60%; }
-        .admin-btn {
-            background-color: #5D88E6; color: white; text-align: center; padding: 10px; border-radius: 8px;
-            border: 2px solid var(--theme-border-color); box-shadow: var(--theme-shadow); font-weight: bold; font-size: 16px; cursor:pointer;
-        }
-        .admin-btn.btn-export { background-color: #E43F5A; }
-        .admin-btn.btn-share { background-color: #4CAF50; }
-        .admin-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--theme-border-color); }
-
-        body.admin-mode .add-btn { display: block; }
-        body.admin-mode .add-card-box { display: flex; }
-        body.admin-mode .admin-footer { display: flex; }
-
-        /* ====================================================================
-        【教学：设置/弹窗面板区】 
-        控制类型：设置弹窗内的小方块紧凑度
-        ==================================================================== 
-        */
-        .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0, 0, 0, 0.6); z-index: 999; display: none; justify-content: center; align-items: center;
-        }
-        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-        .modal-overlay.show { display: flex; }
-        .modal-overlay.show > div { animation: fadeIn 0.2s ease-out; }
-
-        .settings-panel {
-            background-color: white; width: 90%; border-radius: 10px; border: 3px solid var(--theme-border-color);
-            box-shadow: var(--theme-shadow); padding: 15px; max-height: 85vh; overflow-y: auto;
-        }
-        
-        .st-title { font-size: 13px; color: #5E4B8B; margin: 12px 0 8px 0; font-weight: bold; }
-        .st-title i { margin-right: 5px; }
-        
-        /* 优化：颜色块网格更紧凑，1排4个 */
-        .bg-grid {
-            display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px;
-        }
-        .bg-swatch {
-            width: 100%; aspect-ratio: 1; /* 1:1正方形更紧凑 */
-            border-radius: 6px; cursor: pointer; border: 2px solid #ddd;
-            display: flex; justify-content: center; align-items: center; text-align: center; 
-            font-size: 10px; font-weight: bold; color: #333; text-shadow: 0 0 2px rgba(255,255,255,0.8);
-            transition: transform 0.1s;
-        }
-        .bg-swatch.selected { border: 3px solid var(--theme-border-color); transform: scale(1.05); }
-
-        .color-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 15px; }
-        .color-swatch { width: 100%; aspect-ratio: 1; border-radius: 5px; cursor: pointer; border: 2px solid #ddd; }
-        .color-swatch.selected { border: 3px solid var(--theme-border-color); }
-
-        .form-select, .form-input, .form-textarea {
-            width: 100%; padding: 8px; border: 2px solid var(--theme-border-color); background-color: #f9fafb;
-            border-radius: 8px; margin-bottom: 10px; font-family: inherit; font-size: 14px; outline: none;
-        }
-        .form-textarea { height: 80px; resize: none; }
-        
-        .modal-btn-group { display: flex; gap: 10px; margin-top: 15px; }
-        .modal-btn { flex: 1; padding: 10px; text-align: center; border-radius: 5px; font-weight: bold; color: white; cursor: pointer; border: 2px solid var(--theme-border-color); box-shadow: 0 2px 0 var(--theme-border-color); }
-        .btn-save { background-color: #68B9B1; }
-        .btn-del { background-color: #E55A5A; }
-
-        .card-detail-modal { width: 80%; aspect-ratio: 2 / 3.2; border-radius: 15px; border: 4px solid var(--theme-border-color); box-shadow: var(--theme-shadow); position: relative; overflow: hidden; background-size: cover; background-position: center; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .card-detail-mask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0.7); z-index: 1; }
-        .card-detail-content { position: relative; z-index: 2; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 15px; }
-        .cd-top-text { width: 100%; color: white; font-size: 12px; font-weight: bold; text-align: left; text-shadow: 1px 1px 0 var(--theme-border-color); }
-        .cd-badge { background-color: #E55A5A; color: white; font-size: 32px; font-weight: 900; padding: 5px 30px; border-radius: 20px; border: 3px solid var(--theme-border-color); box-shadow: var(--theme-shadow); font-family: var(--font-english); }
-        .cd-title-box { background-color: white; color: var(--theme-border-color); font-size: 24px; font-weight: bold; padding: 10px 30px; border-radius: 20px; border: 3px solid var(--theme-border-color); box-shadow: var(--theme-shadow); }
-        .cd-desc-box { width: 100%; background-color: white; color: var(--theme-border-color); font-size: 16px; font-weight: bold; padding: 15px; border-radius: 15px; border: 3px solid var(--theme-border-color); box-shadow: var(--theme-shadow); line-height: 1.5; white-space: pre-wrap; }
     </style>
 </head>
 <body>
 
-    <header class="header">
-        <div class="icon-btn" id="btnAdmin"><i class="fa-solid fa-wand-magic-sparkles fa-lg"></i></div>
-        <div class="main-title">UNO卡牌介绍</div>
-        <div class="icon-btn" id="btnSettings"><i class="fa-solid fa-sliders fa-lg"></i></div>
-    </header>
+    <h1>卡牌自动算分器 🃏</h1>
+    <p>将卡牌放在平整桌面上，点击“拍照并计算总分”</p>
 
-    <nav class="category-container" id="categoryBar"></nav>
-
-    <div class="big-title-container" id="bigCategoryTitle">A</div>
-
-    <main class="cards-container" id="cardArea"></main>
-
-    <div class="admin-footer">
-        <div class="admin-btn btn-share" id="btnShare"><i class="fa-solid fa-share-nodes"></i> 分享此配置</div>
-        <div class="admin-btn" id="btnImport" onclick="document.getElementById('fileInput').click()"><i class="fa-solid fa-file-import"></i> 导入EXCEL (JSON)</div>
-        <div class="admin-btn btn-export" id="btnExport"><i class="fa-solid fa-file-export"></i> 导出为文件</div>
-        <input type="file" id="fileInput" accept=".json" style="display:none" onchange="handleImport(event)">
+    <div class="camera-container">
+        <!-- 播放摄像头的视频流 -->
+        <video id="video" autoplay playsinline></video>
     </div>
 
-    <div class="modal-overlay" id="detailModal" onclick="closeAllModals(event)">
-        <div class="card-detail-modal" id="detailModalBg" onclick="event.stopPropagation()">
-            <div class="card-detail-mask"></div>
-            <div class="card-detail-content">
-                <div class="cd-top-text" id="detailTopText"></div>
-                <div class="cd-badge" id="detailBadge">A1</div>
-                <div class="cd-title-box" id="detailTitle">转向++8</div>
-                <div class="cd-desc-box" id="detailDesc"></div>
-            </div>
-        </div>
-    </div>
+    <!-- 隐藏的画布，用于抓取视频当前帧 -->
+    <canvas id="canvas" style="display: none;"></canvas>
 
-    <div class="modal-overlay" id="settingsModal" onclick="closeAllModals(event)">
-        <div class="settings-panel" onclick="event.stopPropagation()">
-            <div class="st-title"><i class="fa-solid fa-palette"></i>全局背景风格</div>
-            <div class="bg-grid" id="bgColorsGrid"></div>
-            <div class="st-title"><i class="fa-solid fa-fill-drip"></i>卡片底色</div>
-            <div class="bg-grid" id="cardColorsGrid"></div>
-            
-            <div class="st-title"><i class="fa-solid fa-font"></i>中文字体</div>
-            <select id="fontZhSelect" class="form-select">
-                <option value="'Microsoft YaHei', 'Noto Sans SC', sans-serif">默认 - 微软雅黑</option>
-                <option value="'ZCOOL KuaiLe', cursive">可爱 - 站酷快乐体</option>
-                <option value="'Ma Shan Zheng', cursive">古风 - 马善政毛笔</option>
-                <option value="'Noto Sans SC', sans-serif">现代 - 思源黑体</option>
-                <option value="'Noto Serif SC', serif">优雅 - 思源宋体</option>
-            </select>
-            
-            <div class="st-title"><i class="fa-solid fa-1"></i>数字字体</div>
-            <select id="fontNumSelect" class="form-select">
-                <option value="'Oswald', sans-serif">硬朗 - Oswald</option>
-                <option value="'Fredoka', sans-serif">圆润 - Fredoka</option>
-                <option value="'Rubik Bubbles', cursive">趣味 - 泡泡体</option>
-                <option value="'Bangers', cursive">漫画 - 爆炸体</option>
-                <option value="'Roboto Mono', monospace">极客 - 等宽</option>
-            </select>
+    <button id="captureBtn">📷 拍照并计算总分</button>
 
-            <div class="st-title"><i class="fa-solid fa-a"></i>英文字体</div>
-            <select id="fontEnSelect" class="form-select">
-                <option value="'Fredoka', sans-serif">圆润 - Fredoka</option>
-                <option value="'Lobster', cursive">艺术 - Lobster</option>
-                <option value="'Pacifico', cursive">手写 - Pacifico</option>
-            </select>
-
-            <div class="modal-btn-group">
-                <div class="modal-btn btn-save" onclick="applySettings()">应用所有设置</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal-overlay" id="editModal" onclick="closeAllModals(event)">
-        <div class="settings-panel" onclick="event.stopPropagation()">
-            <div class="st-title" id="editModalTitle">编辑内容</div>
-            <input type="hidden" id="editId">
-            <input type="hidden" id="editType">
-            
-            <input type="text" class="form-input" id="editName" placeholder="名称 (留空则自动占位)">
-            
-            <div id="cardOnlyInputs" style="display:none;">
-                <input type="text" class="form-input" id="editDisplayId" placeholder="显示编号 (留空自动顺延，如A1接A2)">
-                <input type="text" class="form-input" id="editImgUrl" placeholder="图片URL链接 (留空自动使用纯黑背景)">
-                <textarea class="form-textarea" id="editDesc" placeholder="卡牌详细信息"></textarea>
-            </div>
-
-            <div id="catOnlyInputs" style="display:none;">
-                <div class="st-title">分类颜色选择</div>
-                <div class="color-grid" id="catColorGrid"></div>
-                <input type="hidden" id="editCatColor">
-            </div>
-
-            <div class="modal-btn-group">
-                <div class="modal-btn btn-del" id="btnDelete" onclick="deleteItem()">删除</div>
-                <div class="modal-btn btn-save" onclick="saveItem()">保存</div>
-            </div>
-        </div>
+    <div id="result-box">
+        <div id="loading" style="display: none;">正在用 AI 识别数字，请稍候...</div>
+        <div id="result">暂无结果</div>
     </div>
 
     <script>
-        const bgOptions =[
-            { css: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', name: '云端白' },
-            { css: 'linear-gradient(to top, #a18cd1 0%, #fbc2eb 100%)', name: '独角兽' },
-            { css: 'linear-gradient(120deg, #84fab0 0%, #8fd3f4 100%)', name: '薄荷苏打' },
-            { css: 'linear-gradient(120deg, #e0c3fc 0%, #8ec5fc 100%)', name: '薰衣草' },
-            { css: 'linear-gradient(to right, #4facfe 0%, #00f2fe 100%)', name: '马尔代夫' },
-            { css: 'linear-gradient(to top, #30cfd0 0%, #330867 100%)', name: '深海夜' },
-            { css: 'linear-gradient(to top, #accbee 0%, #e7f0fd 100%)', name: '婴儿蓝' },
-            { css: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', name: '赛博紫' },
-            { css: 'linear-gradient(to right, #ffecd2 0%, #fcb69f 100%)', name: '蜜桃气泡' },
-            { css: 'linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%)', name: '雪山灰' },
-            { css: 'radial-gradient(circle at 50% 50%, #ffe6fa, #e3fdf5)', name: '棉花糖' },
-            { css: 'conic-gradient(from 90deg at 50% 50%, #ff9a9e, #fad0c4, #fad0c4, #ff9a9e)', name: '旋转粉' }
-        ];
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const captureBtn = document.getElementById('captureBtn');
+        const loading = document.getElementById('loading');
+        const resultDiv = document.getElementById('result');
 
-        const cardBgOptions =[
-            { css: '#ffffff', name: '纯白' }, { css: '#FFF7ED', name: '米黄' },
-            { css: '#F0F9FF', name: '淡蓝' }, { css: '#FFF1F2', name: '淡粉' },
-            { css: '#F5F3FF', name: '淡紫' }, { css: 'rgba(255, 255, 255, 0.9)', name: '半透白' },
-            { css: 'linear-gradient(to bottom, #ffffff, #f3f4f6)', name: '微渐变' },
-            { css: '#FEFCE8', name: '淡黄' }
-        ];
-
-        const PALETTE =['#f886aa', '#fe8d6f', '#dfdd6c', '#a0dde0', '#9adbc5', '#f6d7c3', '#acbfea', '#c8d5f7', '#fed7dc', '#ffacbc', '#E51C55', '#68B9B1', '#E55A5A', '#C085B9'];
-
-        let appData = {
-            isAdmin: false,
-            currentCatId: 'a',
-            categories:[
-                { id: 'all', name: 'ALL', color: '#E51C55' },
-                { id: 's', name: 'S', color: '#68B9B1' },
-                { id: 'a', name: 'A', color: '#E55A5A' },
-                { id: 'b', name: 'B', color: '#C085B9' }
-            ],
-            cards:[
-                { id: '1', catId: 'a', displayId: 'A1', name: '转向++8', desc: '• 转向\n• 上家摸8张', img: 'https://images.unsplash.com/photo-1627998637774-a0353c7c4c51?w=150&q=80' }
-            ]
-        };
-
-        window.onload = () => {
-            const hash = window.location.hash;
-            if (hash && hash.startsWith('#data=')) {
-                try {
-                    const jsonStr = decodeURIComponent(escape(atob(hash.substring(6))));
-                    const sharedData = JSON.parse(jsonStr);
-                    if (sharedData.categories && sharedData.cards) { appData = sharedData; }
-                } catch(e) {}
-            }
-            initSettingsRender();
-            renderUI();
-        };
-
-        const domCategoryBar = document.getElementById('categoryBar');
-        const domBigTitle = document.getElementById('bigCategoryTitle');
-        const domCardArea = document.getElementById('cardArea');
-        let draggedItemIndex = null; 
-
-        function renderCategories() {
-            domCategoryBar.innerHTML = '';
-            
-            appData.categories.forEach((cat, index) => {
-                const btn = document.createElement('div');
-                btn.className = `cat-btn ${cat.id === appData.currentCatId ? 'active' : ''}`;
-                
-                // 【核心优化1】将 ALL 按钮识别出来，加入专属 class 以实现单独固定在左侧。
-                if(cat.id === 'all') {
-                    btn.classList.add('all-btn');
-                }
-
-                btn.style.backgroundColor = cat.color;
-                btn.innerText = cat.name;
-                
-                btn.onclick = () => {
-                    if (appData.isAdmin) { openEditModal('cat', cat.id); } 
-                    else { appData.currentCatId = cat.id; renderUI(); }
-                };
-
-                // 【核心优化2】拖拽排序逻辑增强，彻底避开 ALL 按钮
-                if (appData.isAdmin && cat.id !== 'all') {
-                    btn.draggable = true;
-                    btn.ondragstart = (e) => {
-                        draggedItemIndex = index;
-                        e.dataTransfer.effectAllowed = 'move';
-                        setTimeout(() => btn.classList.add('dragging'), 0);
-                    };
-                    btn.ondragover = (e) => {
-                        e.preventDefault(); 
-                        // 如果鼠标停留在 ALL 按钮上，不允许出现虚线框
-                        if(index !== 0) btn.classList.add('drag-over');
-                    };
-                    btn.ondragleave = () => btn.classList.remove('drag-over');
-                    btn.ondrop = (e) => {
-                        e.preventDefault();
-                        btn.classList.remove('drag-over');
-                        // 阻止用户将卡片拖到第0位(ALL前面)或者替换ALL
-                        if (index === 0 || draggedItemIndex === null || draggedItemIndex === index) return; 
-                        
-                        const movedCat = appData.categories.splice(draggedItemIndex, 1)[0];
-                        appData.categories.splice(index, 0, movedCat);
-                        renderUI();
-                    };
-                    btn.ondragend = () => {
-                        btn.classList.remove('dragging');
-                        draggedItemIndex = null;
-                        document.querySelectorAll('.cat-btn').forEach(el => el.classList.remove('drag-over'));
-                    };
-                }
-                domCategoryBar.appendChild(btn);
-            });
-
-            const addBtn = document.createElement('div');
-            addBtn.className = 'cat-btn add-btn';
-            addBtn.innerText = '+';
-            addBtn.onclick = () => openEditModal('cat', null);
-            domCategoryBar.appendChild(addBtn);
-        }
-
-        function renderCards() {
-            domCardArea.innerHTML = '';
-            const showCards = appData.currentCatId === 'all' 
-                ? appData.cards : appData.cards.filter(c => c.catId === appData.currentCatId);
-            
-            let currentCatColor = '#E55A5A'; 
-            if(appData.currentCatId !== 'all'){
-                let cat = appData.categories.find(c => c.id === appData.currentCatId);
-                if(cat) currentCatColor = cat.color;
-            }
-
-            showCards.forEach(card => {
-                const item = document.createElement('div');
-                item.className = 'card-item';
-                // 留空图片链接的处理，给个默认占位黑底
-                const imgSrc = card.img || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; 
-                item.innerHTML = `<div class="card-img-box"><img src="${imgSrc}"></div>
-                                  <div class="card-badge" style="background-color: ${currentCatColor};">${card.displayId || '-'}</div>`;
-                item.onclick = () => appData.isAdmin ? openEditModal('card', card.id) : openDetailModal(card, currentCatColor);
-                domCardArea.appendChild(item);
-            });
-
-            const addCardBtn = document.createElement('div');
-            addCardBtn.className = 'add-card-box';
-            addCardBtn.innerText = '+';
-            addCardBtn.onclick = () => openEditModal('card', null);
-            domCardArea.appendChild(addCardBtn);
-        }
-
-        function renderBigTitle() {
-            const currentCat = appData.categories.find(c => c.id === appData.currentCatId);
-            if (currentCat) {
-                domBigTitle.innerText = currentCat.name;
-                domBigTitle.style.backgroundColor = currentCat.color;
+        // 1. 初始化摄像头 (优先调用后置摄像头)
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment" } // "environment" 表示后置镜头
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                console.error("摄像头调用失败:", err);
+                resultDiv.innerHTML = `<span style="color:red;">无法调用摄像头，请确保您授予了摄像头权限，并且是在 HTTPS 环境或 localhost 下运行。</span>`;
             }
         }
 
-        function renderUI() { renderCategories(); renderBigTitle(); renderCards(); }
+        startCamera();
 
-        document.getElementById('btnAdmin').onclick = () => {
-            appData.isAdmin = !appData.isAdmin;
-            document.body.classList.toggle('admin-mode', appData.isAdmin);
-            renderUI();
-        };
+        // 2. 点击按钮进行拍照和 OCR 识别
+        captureBtn.addEventListener('click', async () => {
+            // 禁用按钮并显示加载提示
+            captureBtn.disabled = true;
+            loading.style.display = "block";
+            resultDiv.innerHTML = "";
 
-        document.getElementById('btnSettings').onclick = () => { document.getElementById('settingsModal').classList.add('show'); };
+            // 将视频当前帧绘制到 Canvas 上
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        function closeAllModals(e) { document.querySelectorAll('.modal-overlay').forEach(el => el.classList.remove('show')); }
+            // 将 Canvas 转换为图片数据
+            const imageData = canvas.toDataURL('image/png');
 
-        function openDetailModal(card, bgColor) {
-            document.getElementById('detailTopText').innerText = (card.displayId || '') + ' ' + (card.name || '');
-            document.getElementById('detailBadge').innerText = card.displayId || '-';
-            document.getElementById('detailBadge').style.backgroundColor = bgColor;
-            document.getElementById('detailTitle').innerText = card.name || '未命名卡牌';
-            document.getElementById('detailDesc').innerText = card.desc || '暂无描述信息...';
-            document.getElementById('detailModalBg').style.backgroundImage = `url(${card.img || ''})`;
-            document.getElementById('detailModal').classList.add('show');
-        }
-
-        function initSettingsRender() {
-            const bgGrid = document.getElementById('bgColorsGrid');
-            bgOptions.forEach(opt => {
-                let div = document.createElement('div'); div.className = 'bg-swatch'; div.style.background = opt.css; div.innerText = opt.name;
-                div.onclick = (e) => { document.documentElement.style.setProperty('--bg-global', opt.css); document.querySelectorAll('#bgColorsGrid .bg-swatch').forEach(el=>el.classList.remove('selected')); e.target.classList.add('selected'); };
-                bgGrid.appendChild(div);
-            });
-
-            const cardBgGrid = document.getElementById('cardColorsGrid');
-            cardBgOptions.forEach(opt => {
-                let div = document.createElement('div'); div.className = 'bg-swatch'; div.style.background = opt.css; div.innerText = opt.name;
-                div.onclick = (e) => { document.documentElement.style.setProperty('--container-bg', opt.css); document.querySelectorAll('#cardColorsGrid .bg-swatch').forEach(el=>el.classList.remove('selected')); e.target.classList.add('selected'); };
-                cardBgGrid.appendChild(div);
-            });
-
-            const catGrid = document.getElementById('catColorGrid');
-            PALETTE.forEach(color => {
-                let div = document.createElement('div'); div.className = 'color-swatch'; div.style.backgroundColor = color;
-                div.onclick = (e) => { document.querySelectorAll('#catColorGrid .color-swatch').forEach(el=>el.classList.remove('selected')); e.target.classList.add('selected'); document.getElementById('editCatColor').value = color; };
-                catGrid.appendChild(div);
-            });
-        }
-
-        function applySettings() {
-            document.documentElement.style.setProperty('--font-main', document.getElementById('fontZhSelect').value);
-            document.documentElement.style.setProperty('--font-number', document.getElementById('fontNumSelect').value);
-            document.documentElement.style.setProperty('--font-english', document.getElementById('fontEnSelect').value);
-            closeAllModals();
-        }
-
-        function openEditModal(type, id) {
-            document.getElementById('editType').value = type; document.getElementById('editId').value = id || '';
-            document.getElementById('editModal').classList.add('show');
-            const isCat = type === 'cat';
-            document.getElementById('catOnlyInputs').style.display = isCat ? 'block' : 'none';
-            document.getElementById('cardOnlyInputs').style.display = isCat ? 'none' : 'block';
-            document.getElementById('btnDelete').style.display = id ? 'block' : 'none';
-
-            if (isCat) {
-                document.getElementById('editModalTitle').innerHTML = id ? '编辑分类' : '新增分类';
-                if (id) { const cat = appData.categories.find(c => c.id === id); document.getElementById('editName').value = cat.name; document.getElementById('editCatColor').value = cat.color;
-                } else { document.getElementById('editName').value = ''; }
-            } else {
-                document.getElementById('editModalTitle').innerHTML = id ? '编辑卡牌' : '新增卡牌 (空填可自动生成)';
-                if (id) {
-                    const card = appData.cards.find(c => c.id === id);
-                    document.getElementById('editName').value = card.name || '';
-                    document.getElementById('editDisplayId').value = card.displayId || '';
-                    document.getElementById('editImgUrl').value = card.img || '';
-                    document.getElementById('editDesc').value = card.desc || '';
-                } else {['editName', 'editDisplayId', 'editImgUrl', 'editDesc'].forEach(i => document.getElementById(i).value = ''); }
-            }
-        }
-
-        function saveItem() {
-            const type = document.getElementById('editType').value;
-            const id = document.getElementById('editId').value;
-            
-            // 【核心优化3】允许占位，如果什么都不填，默认叫"新建项"
-            let name = document.getElementById('editName').value || (type === 'cat' ? '新分类' : '新建卡牌');
-
-            if (type === 'cat') {
-                const color = document.getElementById('editCatColor').value || '#E55A5A';
-                if (id) {
-                    let cat = appData.categories.find(c => c.id === id); cat.name = name; cat.color = color;
-                } else { appData.categories.push({ id: 'c_' + Date.now(), name, color }); }
-            } else {
-                if(appData.currentCatId === 'all') return alert('请先进入具体的分类标签再添加卡牌！');
+            try {
+                // 初始化 Tesseract Worker
+                const worker = await Tesseract.createWorker('eng');
                 
-                let displayId = document.getElementById('editDisplayId').value;
-                const img = document.getElementById('editImgUrl').value;
-                const desc = document.getElementById('editDesc').value;
-                
-                // 【核心优化4】智能自增编号逻辑
-                if (!displayId && !id) { // 只有在新建且未填写时才触发
-                    const catCards = appData.cards.filter(c => c.catId === appData.currentCatId);
-                    const currentCatObj = appData.categories.find(c => c.id === appData.currentCatId);
-                    // 默认前缀为当前分类的大写首字母，比如 "S类" -> "S"
-                    let prefix = currentCatObj ? currentCatObj.name.substring(0, 1).toUpperCase() : 'C';
-                    let maxNum = 0;
+                // 设置白名单：告诉 AI 我们只需要识别数字，这能大幅提高准确率 (防止把 O 认成 0，l 认成 1)
+                await worker.setParameters({
+                    tessedit_char_whitelist: '0123456789',
+                });
+
+                // 开始识别
+                const { data: { text } } = await worker.recognize(imageData);
+                await worker.terminate();
+
+                // 3. 处理识别结果
+                // 使用正则表达式提取所有连续的数字组合
+                const numbers = text.match(/\d+/g);
+
+                if (numbers && numbers.length > 0) {
+                    // 将提取出的字符串数组转为数字并求和
+                    const sum = numbers.reduce((total, num) => total + parseInt(num, 10), 0);
                     
-                    if (catCards.length > 0) {
-                        catCards.forEach(c => {
-                            // 使用正则剥离后面的数字，如 "A12" -> 提取 "12"
-                            const match = c.displayId ? c.displayId.match(/\d+$/) : null;
-                            if (match) {
-                                const num = parseInt(match[0], 10);
-                                if (num > maxNum) { maxNum = num; }
-                                // 顺手把字母前缀提取出来保持一致
-                                prefix = c.displayId.substring(0, match.index);
-                            } else {
-                                // 如果前卡片没有数字编号，仅仅累计数量
-                                maxNum = catCards.length;
-                            }
-                        });
-                    }
-                    displayId = prefix + (maxNum + 1);
-                }
-                
-                if (id) {
-                    let card = appData.cards.find(c => c.id === id);
-                    card.name = name; card.displayId = displayId; card.img = img; card.desc = desc;
+                    resultDiv.innerHTML = `
+                        <div>识别到的数字: <strong>${numbers.join(', ')}</strong></div>
+                        <div class="total-score">总分: ${sum}</div>
+                    `;
                 } else {
-                    appData.cards.push({ id: 'card_' + Date.now(), catId: appData.currentCatId, displayId, name, desc, img });
+                    resultDiv.innerHTML = "未能识别到清晰的数字，请调整光线或距离后重试。";
                 }
+
+            } catch (err) {
+                console.error(err);
+                resultDiv.innerHTML = `<span style="color:red;">识别过程中发生错误。</span>`;
+            } finally {
+                // 恢复按钮状态
+                captureBtn.disabled = false;
+                loading.style.display = "none";
             }
-            closeAllModals(); renderUI();
-        }
-
-        function deleteItem() {
-            const type = document.getElementById('editType').value; const id = document.getElementById('editId').value;
-            if(confirm('警告：确定要删除吗？')) {
-                if (type === 'cat') {
-                    if(id === 'all') return alert('ALL不可删！');
-                    appData.categories = appData.categories.filter(c => c.id !== id);
-                    if(appData.currentCatId === id) appData.currentCatId = 'all';
-                } else { appData.cards = appData.cards.filter(c => c.id !== id); }
-                closeAllModals(); renderUI();
-            }
-        }
-
-        document.getElementById('btnShare').onclick = () => {
-            const exportData = { categories: appData.categories, cards: appData.cards };
-            const jsonStr = JSON.stringify(exportData);
-            const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
-            const shareUrl = window.location.origin + window.location.pathname + '#data=' + base64;
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(shareUrl).then(() => alert('分享链接已复制！')).catch(() => prompt('请复制：', shareUrl));
-            } else { prompt('请复制：', shareUrl); }
-        };
-
-        document.getElementById('btnExport').onclick = () => {
-            const date = new Date();
-            const yy = String(date.getFullYear()).slice(-2); const mm = String(date.getMonth() + 1).padStart(2, '0'); const dd = String(date.getDate()).padStart(2, '0');
-            const filename = `UNO CARD-[${yy}/${mm}/${dd}]-[${appData.cards.length}].json`;
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ categories: appData.categories, cards: appData.cards }, null, 2));
-            const dlNode = document.createElement('a'); dlNode.setAttribute("href", dataStr); dlNode.setAttribute("download", filename);
-            document.body.appendChild(dlNode); dlNode.click(); dlNode.remove();
-        };
-
-        function handleImport(event) {
-            const file = event.target.files[0]; if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const imported = JSON.parse(e.target.result);
-                    if(imported.categories && imported.cards) { appData.categories = imported.categories; appData.cards = imported.cards; appData.currentCatId = 'all'; renderUI(); alert('导入成功！'); } else alert('格式错误！');
-                } catch (err) { alert('解析失败！'); }
-            }; reader.readAsText(file);
-        }
+        });
     </script>
+
 </body>
 </html>
